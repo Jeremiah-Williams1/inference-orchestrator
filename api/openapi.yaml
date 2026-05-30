@@ -1,0 +1,105 @@
+openapi: 3.0.0
+info:
+  title: Inference Orchestrator API
+  version: 1.0.0
+  description: |
+    Production-grade ML inference orchestration service.
+    Jobs are submitted asynchronously, queued in Redis, and processed by inference workers.
+    Poll the job result endpoint until status is "completed" or "failed".
+
+servers:
+  - url: /api/v1
+    description: Local development
+
+tags:
+  - name: Health
+    description: Liveness check. Used by Docker healthcheck and later by k8s probes.
+  - name: Jobs
+    description: Submit inference jobs and poll for results.
+  - name: Queues
+    description: Queue depth monitoring. KEDA watches this to decide when to scale workers.
+
+components:
+  schemas:
+
+    BaseResponse:
+      type: object
+      required: [message, code]
+      properties:
+        message:
+          type: string
+          description: Human-readable description of the result
+        code:
+          type: string
+          description: |
+            Machine-readable code. Clients branch on this, not on message.
+            Success codes: OK, ACCEPTED
+            Error codes: BAD_REQUEST, NOT_FOUND, CONFLICT, INTERNAL, VALIDATION_ERROR
+
+    SuccessResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              nullable: true
+              description: Response payload. Shape depends on the endpoint.
+              x-go-type: interface{}
+
+    ErrorResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            errors:
+              type: array
+              nullable: true
+              description: Field-level validation errors. Present on VALIDATION_ERROR only.
+              items:
+                $ref: "#/components/schemas/FieldError"
+
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          example: input.feature_1
+        message:
+          type: string
+          example: must be a number
+
+paths:
+  /health:
+    get:
+      operationId: GetHealth
+      summary: Liveness check
+      tags: [Health]
+      description: |
+        Returns 200 if the server process is running.
+        Does not check Redis or workers — that is a readiness concern, not liveness.
+        k8s liveness probes call this. It must never be versioned or moved.
+      responses:
+        "200":
+          description: Server is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                message: ok
+                code: OK
+                data: null
+
+  # TODO: add these endpoints as you build them
+  # /jobs:
+  #   post:
+  #     operationId: SubmitJob
+  #
+  # /jobs/{id}:
+  #   get:
+  #     operationId: GetJobResult
+  #
+  # /queues/{type}/depth:
+  #   get:
+  #     operationId: GetQueueDepth
