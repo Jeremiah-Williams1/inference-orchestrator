@@ -1,16 +1,3 @@
-// Package queue defines the contract between the service layer and the queue backend.
-//
-// The Queue interface is what the service talks to.
-// The Redis implementation is what actually runs.
-// The service never imports Redis directly — it imports this interface.
-//
-// Why does this matter?
-// When you write tests for the service, you pass in a fake queue that stores
-// jobs in memory. No Redis needed, no Docker needed, tests run instantly.
-// The service cannot tell the difference because it only sees the interface.
-//
-// This is the same pattern your previous codebase enforced with interfaces on routes.
-// Same idea, different layer.
 package queue
 
 import (
@@ -19,9 +6,6 @@ import (
 	"github.com/Jeremiah-Williams1/inference-orchestrator/internal/models"
 )
 
-// Queue is the contract every queue implementation must satisfy.
-// Right now there is one implementation: Redis.
-// If you ever want SQS, Kafka, or an in-memory queue for tests — implement this interface.
 type Queue interface {
 	// Enqueue pushes a job onto the queue for its type.
 	// classification jobs go to one queue, regression jobs go to another.
