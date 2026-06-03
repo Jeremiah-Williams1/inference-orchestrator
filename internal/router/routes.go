@@ -13,9 +13,11 @@ import (
 	"os"
 
 	"github.com/Jeremiah-Williams1/inference-orchestrator/config"
+	"github.com/Jeremiah-Williams1/inference-orchestrator/internal/api"
 	"github.com/Jeremiah-Williams1/inference-orchestrator/internal/docs"
 	"github.com/Jeremiah-Williams1/inference-orchestrator/internal/job"
 	"github.com/Jeremiah-Williams1/inference-orchestrator/internal/middleware"
+	"github.com/Jeremiah-Williams1/inference-orchestrator/internal/queue"
 	redis "github.com/Jeremiah-Williams1/inference-orchestrator/pkg/redisclient"
 	"github.com/gin-gonic/gin"
 )
@@ -58,14 +60,14 @@ func (s *Router) Routes() *gin.Engine {
 	r.GET("/docs", docs.UI)
 	r.GET("/docs/spec", docs.Spec)
 
-	// TODO: once you run oapi-codegen and internal/api/gen.go exists,
-	// replace the manual route above with:
-	//
-	// v1 := r.Group("/api/v1")
-	// api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{})
-	//
-	// After that, all routes are registered automatically from the generated code.
-	// You only implement the methods — never touch route registration manually.
+	if s.redis != nil {
+		redisQueue := queue.NewRedisQueue(s.redis.Redis())
+		jobSvc := job.NewJobService(redisQueue, s.log)
+		impl.job = job.NewJobHandler(jobSvc, s.log)
+	}
+
+	v1 := r.Group("/api/v1")
+	api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{})
 
 	return r
 }

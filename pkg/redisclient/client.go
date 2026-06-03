@@ -37,6 +37,10 @@ func New(redisURL string) (*Client, error) {
 	return &Client{rdb: rdb}, nil
 }
 
+func (c *Client) Redis() *redis.Client {
+	return c.rdb
+}
+
 func (c *Client) Close() error {
 	return c.rdb.Close()
 }

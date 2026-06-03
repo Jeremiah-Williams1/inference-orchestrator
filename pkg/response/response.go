@@ -78,6 +78,14 @@ func Err(c *gin.Context, err error) {
 	}
 }
 
+// func Unavailable(c *gin.Context, message string, data interface{}) {
+// 	c.JSON(http.StatusServiceUnavailable, ErrorResponse{
+// 		Message: message,
+// 		Code:    "SERVER_ERROR",
+// 		Errors:  nil,
+// 	})
+// }
+
 // ValidationErr sends a 400 for request binding failures.
 // Kept separate from Err because gin's binding errors are not AppErrors —
 // they come from the binding library and carry field-level detail we want to surface.
