@@ -1,12 +1,13 @@
 package job
 
 import (
-	"fmt"
 	"log/slog"
 
+	"github.com/Jeremiah-Williams1/inference-orchestrator/internal/api"
 	"github.com/Jeremiah-Williams1/inference-orchestrator/internal/models"
 	"github.com/Jeremiah-Williams1/inference-orchestrator/pkg/response"
 	"github.com/gin-gonic/gin"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 type SubmitJobRequest struct {
@@ -43,15 +44,9 @@ func (h *JobHandler) SubmitJob(c *gin.Context) {
 	response.Accepted(c, "job queued", job)
 }
 
-func (h *JobHandler) GetJobResult(c *gin.Context) {
-	jobID := c.Param("id")
+func (h *JobHandler) GetJobResult(c *gin.Context, id openapi_types.UUID) {
 
-	if jobID == "" {
-		response.ValidationErr(c, fmt.Errorf("job id is required"))
-		return
-	}
-
-	job, err := h.service.GetJob(c.Request.Context(), jobID)
+	job, err := h.service.GetJob(c.Request.Context(), id.String())
 	if err != nil {
 		h.log.Error("failed to Get job", "error", err)
 		response.Err(c, err)
@@ -62,20 +57,14 @@ func (h *JobHandler) GetJobResult(c *gin.Context) {
 
 }
 
-func (h *JobHandler) GetQueueDepth(c *gin.Context) {
-	jobType := c.Query("type")
-	if jobType == "" {
-		response.ValidationErr(c, fmt.Errorf("job id is required"))
-		return
-	}
-
-	depth, err := h.service.GetQueueDepth(c.Request.Context(), models.Type(jobType))
+func (h *JobHandler) GetQueueDepth(c *gin.Context, pType api.GetQueueDepthParamsType) {
+	depth, err := h.service.GetQueueDepth(c.Request.Context(), models.Type(pType))
 	if err != nil {
 		h.log.Error("failed to Get queue depth", "error", err)
 		response.Err(c, err)
 		return
 	}
 
-	response.OK(c, "queue depth", gin.H{"depth": depth, "type": jobType})
+	response.OK(c, "queue depth", gin.H{"depth": depth, "type": pType})
 
 }

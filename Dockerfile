@@ -3,7 +3,7 @@
 # The final image has no Go toolchain in it — just the binary.
 # This keeps the image small and reduces the attack surface.
 
-FROM golang:1.22-alpine AS builder
+FROM golang:latest AS builder
 
 WORKDIR /app
 

@@ -68,6 +68,17 @@ components:
         message:
           type: string
           example: must be a number
+    
+    SubmitJobRequest:
+      type: object
+      required: [type, input]
+      properties:
+        type:
+          type: string
+          enum: [classification, regression]
+        input:
+          type: object
+          additionalProperties: true
 
 paths:
   /health:
@@ -86,20 +97,102 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
-              example:
-                message: ok
-                code: OK
-                data: null
 
-  # TODO: add these endpoints as you build them
-  # /jobs:
-  #   post:
-  #     operationId: SubmitJob
-  #
-  # /jobs/{id}:
-  #   get:
-  #     operationId: GetJobResult
-  #
-  # /queues/{type}/depth:
-  #   get:
-  #     operationId: GetQueueDepth
+  /jobs:
+    post:
+      operationId: SubmitJob
+      summary: Submit a Job to the Queue
+      tags: [Jobs]
+      description: |
+        Submits a job to the redis queue for async inference processing.
+        Returns a job ID immediately — use it to poll for the result.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitJobRequest"
+      responses:
+        "202":
+          description: Job queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /jobs/{id}:
+    get:
+      operationId: GetJobResult
+      summary: Get job result by ID
+      tags: [Jobs]
+      description: |
+        Polls for the result of a submitted job.
+        Returns the current status — queued, processing, completed, or failed.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Job found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "404":
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /queues/{type}/depth:
+    get:
+      operationId: GetQueueDepth
+      summary: Get queue depth by type
+      tags: [Jobs]
+      description: |
+        Returns how many jobs are currently waiting in the queue for a given type.
+        Used by KEDA to make scaling decisions.
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [classification, regression]
+      responses:
+        "200":
+          description: Queue depth returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+

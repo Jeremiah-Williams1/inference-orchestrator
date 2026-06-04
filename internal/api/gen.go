@@ -4,8 +4,49 @@
 package api
 
 import (
+	"fmt"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
+	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for SubmitJobRequestType.
+const (
+	SubmitJobRequestTypeClassification SubmitJobRequestType = "classification"
+	SubmitJobRequestTypeRegression     SubmitJobRequestType = "regression"
+)
+
+// Valid indicates whether the value is a known member of the SubmitJobRequestType enum.
+func (e SubmitJobRequestType) Valid() bool {
+	switch e {
+	case SubmitJobRequestTypeClassification:
+		return true
+	case SubmitJobRequestTypeRegression:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetQueueDepthParamsType.
+const (
+	GetQueueDepthParamsTypeClassification GetQueueDepthParamsType = "classification"
+	GetQueueDepthParamsTypeRegression     GetQueueDepthParamsType = "regression"
+)
+
+// Valid indicates whether the value is a known member of the GetQueueDepthParamsType enum.
+func (e GetQueueDepthParamsType) Valid() bool {
+	switch e {
+	case GetQueueDepthParamsTypeClassification:
+		return true
+	case GetQueueDepthParamsTypeRegression:
+		return true
+	default:
+		return false
+	}
+}
 
 // BaseResponse defines model for BaseResponse.
 type BaseResponse struct {
@@ -17,6 +58,35 @@ type BaseResponse struct {
 	// Message Human-readable description of the result
 	Message string `json:"message"`
 }
+
+// ErrorResponse defines model for ErrorResponse.
+type ErrorResponse struct {
+	// Code Machine-readable code. Clients branch on this, not on message.
+	// Success codes: OK, ACCEPTED
+	// Error codes: BAD_REQUEST, NOT_FOUND, CONFLICT, INTERNAL, VALIDATION_ERROR
+	Code string `json:"code"`
+
+	// Errors Field-level validation errors. Present on VALIDATION_ERROR only.
+	Errors *[]FieldError `json:"errors,omitempty"`
+
+	// Message Human-readable description of the result
+	Message string `json:"message"`
+}
+
+// FieldError defines model for FieldError.
+type FieldError struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+}
+
+// SubmitJobRequest defines model for SubmitJobRequest.
+type SubmitJobRequest struct {
+	Input map[string]interface{} `json:"input"`
+	Type  SubmitJobRequestType   `json:"type"`
+}
+
+// SubmitJobRequestType defines model for SubmitJobRequest.Type.
+type SubmitJobRequestType string
 
 // SuccessResponse defines model for SuccessResponse.
 type SuccessResponse struct {
@@ -32,11 +102,26 @@ type SuccessResponse struct {
 	Message string `json:"message"`
 }
 
+// GetQueueDepthParamsType defines parameters for GetQueueDepth.
+type GetQueueDepthParamsType string
+
+// SubmitJobJSONRequestBody defines body for SubmitJob for application/json ContentType.
+type SubmitJobJSONRequestBody = SubmitJobRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Liveness check
 	// (GET /health)
 	GetHealth(c *gin.Context)
+	// Submit a Job to the Queue
+	// (POST /jobs)
+	SubmitJob(c *gin.Context)
+	// Get job result by ID
+	// (GET /jobs/{id})
+	GetJobResult(c *gin.Context, id openapi_types.UUID)
+	// Get queue depth by type
+	// (GET /queues/{type}/depth)
+	GetQueueDepth(c *gin.Context, pType GetQueueDepthParamsType)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -59,6 +144,69 @@ func (siw *ServerInterfaceWrapper) GetHealth(c *gin.Context) {
 	}
 
 	siw.Handler.GetHealth(c)
+}
+
+// SubmitJob operation middleware
+func (siw *ServerInterfaceWrapper) SubmitJob(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SubmitJob(c)
+}
+
+// GetJobResult operation middleware
+func (siw *ServerInterfaceWrapper) GetJobResult(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetJobResult(c, id)
+}
+
+// GetQueueDepth operation middleware
+func (siw *ServerInterfaceWrapper) GetQueueDepth(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "type" -------------
+	var pType GetQueueDepthParamsType
+
+	err = runtime.BindStyledParameterWithOptions("simple", "type", c.Param("type"), &pType, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter type: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetQueueDepth(c, pType)
 }
 
 // GinServerOptions provides options for the Gin server.
@@ -89,4 +237,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	}
 
 	router.GET(options.BaseURL+"/health", wrapper.GetHealth)
+	router.POST(options.BaseURL+"/jobs", wrapper.SubmitJob)
+	router.GET(options.BaseURL+"/jobs/:id", wrapper.GetJobResult)
+	router.GET(options.BaseURL+"/queues/:type/depth", wrapper.GetQueueDepth)
 }

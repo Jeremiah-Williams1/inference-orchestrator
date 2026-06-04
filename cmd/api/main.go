@@ -39,10 +39,6 @@ func main() {
 	slog.Info("redis connected")
 	defer redisClient.Close()
 
-	// TODO: wire queue and service once implementations are ready
-	// redisQueue := queue.NewRedisQueue(redisClient)
-	// jobSvc := service.NewJobService(redisQueue)
-
 	// nil is safe for now — health endpoint does not use the service
 	srv := routes.New(cfg, log, redisClient)
 
