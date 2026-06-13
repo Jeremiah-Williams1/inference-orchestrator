@@ -29,7 +29,39 @@ services:
     image: classification-worker:latest
     environment:
       - REDIS_URL=redis://redis:6379
+      - PUSHGATEWAY_URL=http://pushgateway:9091
     depends_on:
       redis:
         condition: service_healthy
     restart: on-failure
+
+  pushgateway:
+    image: prom/pushgateway:latest
+    ports:
+      - "9091:9091"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - api
+      - pushgateway
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+    restart: unless-stopped

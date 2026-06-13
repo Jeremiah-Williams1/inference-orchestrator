@@ -18,8 +18,11 @@ import (
 	"github.com/Jeremiah-Williams1/inference-orchestrator/internal/job"
 	"github.com/Jeremiah-Williams1/inference-orchestrator/internal/middleware"
 	"github.com/Jeremiah-Williams1/inference-orchestrator/internal/queue"
+	"github.com/Jeremiah-Williams1/inference-orchestrator/pkg/metrics"
 	redis "github.com/Jeremiah-Williams1/inference-orchestrator/pkg/redisclient"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Router holds every dependency the application needs.
@@ -28,10 +31,11 @@ type Router struct {
 	cfg   *config.Config
 	log   *slog.Logger
 	redis *redis.Client
+	reg   *prometheus.Registry
 }
 
-func New(cfg *config.Config, log *slog.Logger, redisClient *redis.Client) *Router {
-	return &Router{cfg: cfg, log: log, redis: redisClient}
+func New(cfg *config.Config, log *slog.Logger, redisClient *redis.Client, reg *prometheus.Registry) *Router {
+	return &Router{cfg: cfg, log: log, redis: redisClient, reg: reg}
 }
 
 type routerImpl struct {
@@ -48,9 +52,11 @@ func (s *Router) Routes() *gin.Engine {
 	r.Use(gin.Recovery())
 
 	impl := &routerImpl{}
+	m := metrics.NewMetrics(s.reg)
 
 	// Health lives outside /api/v1 — never versioned, always stable.
 	r.GET("/health", impl.GetHealth)
+	r.GET("/metrics", gin.WrapH(promhttp.HandlerFor(s.reg, promhttp.HandlerOpts{})))
 
 	spec, err := os.ReadFile("api.yaml")
 	if err != nil {
@@ -62,7 +68,7 @@ func (s *Router) Routes() *gin.Engine {
 
 	if s.redis != nil {
 		redisQueue := queue.NewRedisQueue(s.redis.Redis())
-		jobSvc := job.NewJobService(redisQueue, s.log)
+		jobSvc := job.NewJobService(redisQueue, s.log, m)
 		impl.job = job.NewJobHandler(jobSvc, s.log)
 	}
 

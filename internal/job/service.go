@@ -9,16 +9,18 @@ import (
 	"github.com/Jeremiah-Williams1/inference-orchestrator/internal/models"
 	"github.com/Jeremiah-Williams1/inference-orchestrator/internal/queue"
 	"github.com/Jeremiah-Williams1/inference-orchestrator/pkg/apperror"
+	"github.com/Jeremiah-Williams1/inference-orchestrator/pkg/metrics"
 	"github.com/google/uuid"
 )
 
 type JobService struct {
-	queue queue.Queue
-	log   *slog.Logger
+	queue   queue.Queue
+	log     *slog.Logger
+	metrics *metrics.Metrics
 }
 
-func NewJobService(q queue.Queue, log *slog.Logger) *JobService {
-	return &JobService{queue: q, log: log}
+func NewJobService(q queue.Queue, log *slog.Logger, metrics *metrics.Metrics) *JobService {
+	return &JobService{queue: q, log: log, metrics: metrics}
 }
 
 func (j JobService) CreateJob(ctx context.Context, jobType models.Type, input map[string]interface{}) (*models.Job, error) {
@@ -48,6 +50,7 @@ func (j JobService) CreateJob(ctx context.Context, jobType models.Type, input ma
 		return nil, fmt.Errorf("failed to enqueue job %s: %w", job.ID, err)
 	}
 
+	j.metrics.JobsSubmitted.WithLabelValues(string(jobType)).Inc()
 	return &job, nil
 
 }
@@ -68,10 +71,11 @@ func (j JobService) GetJob(ctx context.Context, jobID string) (*models.Job, erro
 }
 
 func (j JobService) GetQueueDepth(ctx context.Context, jobType models.Type) (int64, error) {
-	length, err := j.queue.Depth(ctx, jobType)
+	depth, err := j.queue.Depth(ctx, jobType)
 	if err != nil {
 		j.log.Error("Error getting length for", "job_type", jobType, "error", err)
 		return 0, fmt.Errorf("Error gettin the length %w", err)
 	}
-	return length, nil
+	j.metrics.QueueDepth.WithLabelValues(string(jobType)).Set(float64(depth))
+	return depth, nil
 }

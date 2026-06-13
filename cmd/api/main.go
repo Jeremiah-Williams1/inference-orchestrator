@@ -15,6 +15,7 @@ import (
 	"github.com/Jeremiah-Williams1/inference-orchestrator/pkg/logger"
 	"github.com/Jeremiah-Williams1/inference-orchestrator/pkg/redisclient"
 	"github.com/joho/godotenv"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func main() {
@@ -31,6 +32,9 @@ func main() {
 	log := logger.New(cfg.LogLevel, cfg.LogFormat, cfg.Env)
 	slog.SetDefault(log)
 
+	// prometheus registry and new metrics struct
+	reg := prometheus.NewRegistry()
+
 	redisClient, err := redisclient.New(cfg.RedisURL)
 	if err != nil {
 		slog.Error("failed to connect to redis", "error", err)
@@ -40,7 +44,7 @@ func main() {
 	defer redisClient.Close()
 
 	// nil is safe for now — health endpoint does not use the service
-	srv := routes.New(cfg, log, redisClient)
+	srv := routes.New(cfg, log, redisClient, reg)
 
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,
