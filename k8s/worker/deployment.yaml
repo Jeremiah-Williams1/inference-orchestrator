@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: classification-worker
+  name: classification-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: classification-worker
+  template:
+    metadata:
+      labels:
+        app: classification-worker
+    spec:
+      containers:
+      - image: classification-worker:latest
+        imagePullPolicy: Never
+        name: classification-worker
+        envFrom:
+          - configMapRef:
+              name: classification-worker-config

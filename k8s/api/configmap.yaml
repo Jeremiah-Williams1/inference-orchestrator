@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inference-api-config
+data:
+  SERVER_PORT: "8080"
+  APP_ENV: "development"
+  REDIS_URL: "redis://redis-svc:6379"

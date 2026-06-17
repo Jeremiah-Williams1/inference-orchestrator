@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: grafana
+  name: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 3000
+        
+        # RIGHT HAND SIDE (Where the files go inside the container)
+        volumeMounts:
+        - name: datasources-vol
+          mountPath: /etc/grafana/provisioning/datasources
+        - name: provisioning-dashboards-vol
+          mountPath: /etc/grafana/provisioning/dashboards
+        - name: storage-dashboards-vol
+          mountPath: /var/lib/grafana/dashboards
+
+      # LEFT HAND SIDE (The source of your files)
+      volumes:
+      - name: datasources-vol
+        configMap:
+          name: grafana-datasources-config   # Matches the 1st ConfigMap
+      
+      - name: provisioning-dashboards-vol
+        configMap:
+          name: grafana-dashboards-config    # Matches the 2nd ConfigMap
+          
+      - name: storage-dashboards-vol
+        configMap:
+          name: grafana-dashboards-config    # We can reuse the same dashboard ConfigMap here!

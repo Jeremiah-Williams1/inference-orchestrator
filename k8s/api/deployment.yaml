@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: inference-api
+  name: inference-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inference-api
+  template:
+    metadata:
+      labels:
+        app: inference-api
+    spec:
+      containers:
+      - image: inference-api:latest
+        imagePullPolicy: Never
+        name: inference-api
+        envFrom:
+          - configMapRef:
+              name: inference-api-config
+        ports:
+          - containerPort: 8080
