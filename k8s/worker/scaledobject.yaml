@@ -1,0 +1,17 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: classification-worker-scaler
+spec:
+  scaleTargetRef:
+    name: classification-worker
+  minReplicaCount: 0
+  maxReplicaCount: 5
+  cooldownPeriod: 30
+  triggers:
+    - type: metrics-api
+      metadata:
+        targetValue: "5"
+        url: "http://inference-svc.default.svc.cluster.local:8080/api/v1/queues/classification/depth"
+        valueLocation: "data.depth"
+        method: "GET"

@@ -3,5 +3,5 @@ kind: ConfigMap
 metadata:
   name: classification-worker-config
 data:
-  PUSHGATEWAY_URL: "https://pushgateway-svc:9091"
+  PUSHGATEWAY_URL: "http://pushgateway-svc:9091"
   REDIS_URL: "redis://redis-svc:6379"
