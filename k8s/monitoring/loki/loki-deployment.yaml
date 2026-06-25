@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: loki
+  name: loki
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loki
+  template:
+    metadata:
+      labels:
+        app: loki
+    spec:
+      containers:
+      - image: grafana/loki:main-4245b4a
+        name: loki
+        args:
+          - "-config.file=/etc/loki/loki-config.yaml"
+        ports:
+        - containerPort: 3100
+        
+        volumeMounts:
+        - name: loki-config-vol
+          mountPath: /etc/loki
+
+        - name: loki-volume
+          mountPath: /loki
+      
+    
+      volumes:
+        - name: loki-config-vol
+          configMap:
+            name: loki-config
+            items:
+              - key: loki-config.yaml      # the key in the ConfigMap's `data`
+                path: loki-config.yaml     # the filename it becomes inside the mount dir
+          
+        - name: loki-volume
+          persistentVolumeClaim:
+            claimName: loki-pvc
