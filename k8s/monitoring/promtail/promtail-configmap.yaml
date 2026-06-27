@@ -4,35 +4,34 @@ metadata:
   name: promtail-config
 data:
   promtail-config.yaml: |
-    # 1. Internal Promtail Server Info
     server:
       http_listen_port: 9080
 
-    # 2. Where to save file read states (so restarts don't duplicate logs)
     positions:
       filename: /tmp/positions.yaml
 
-    # 3. Where to push the logs (Using K8s Internal DNS)
     clients:
       - url: http://loki-svc:3100/loki/api/v1/push
 
-    # 4. How to find and label the logs
     scrape_configs:
     - job_name: kubernetes-pods
       kubernetes_sd_configs:
-      - role: pod # Automatically discovers pods running on the cluster
-      
-      # Relabeling rules: K8s logs are natively named by hashes.
-      # This block converts ugly file paths into clean labels in Loki.
+        - role: pod
       relabel_configs:
-      - source_labels: [__meta_kubernetes_namespace]
-        target_label: namespace
-      - source_labels: [__meta_kubernetes_pod_name]
-        target_label: pod
-      - source_labels: [__meta_kubernetes_pod_container_name]
-        target_label: container
-      # This tells Promtail where the actual log files sit on the node
-      - replacement: /var/log/pods/*$1/*.log
-        separator: /
-        source_labels: [__meta_kubernetes_pod_uid, __meta_kubernetes_pod_container_name]
-        target_label: __path__
+        - source_labels: [__meta_kubernetes_pod_node_name]
+          target_label: __host__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: pod
+        - source_labels: [__meta_kubernetes_pod_container_name]
+          action: replace
+          target_label: container
+        - source_labels: [__meta_kubernetes_pod_uid, __meta_kubernetes_pod_container_name]
+          target_label: __path__
+          separator: /
+          replacement: /var/log/pods/*$1/*.log

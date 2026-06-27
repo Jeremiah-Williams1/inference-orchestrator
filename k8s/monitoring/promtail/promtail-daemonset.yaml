@@ -13,36 +13,40 @@ spec:
       labels:
         app: promtail
     spec:
+      serviceAccountName: promtail
       tolerations:
         - operator: Exists
-      serviceAccountName: promtail
       containers:
         - name: promtail
-          image: grafana/promtail:3.6.11        
+          image: grafana/promtail:3.6.11
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           args:
-            - "-config.file=/etc/promtail/promtail-config.yaml"  
+            - "-config.file=/etc/promtail/promtail-config.yaml"
+          ports:
+            - containerPort: 9080
           volumeMounts:
             - name: log-volume
               mountPath: /var/log
               readOnly: true
-
             - name: docker-containers
               mountPath: /var/lib/docker/containers
               readOnly: true
-    
             - name: promtail-config-vol
               mountPath: /etc/promtail
-
       volumes:
         - name: log-volume
           hostPath:
             path: /var/log
         - name: docker-containers
           hostPath:
-            path: /var/lib/docker/containerssd
+            path: /var/lib/docker/containers
         - name: promtail-config-vol
           configMap:
             name: promtail-config
             items:
-              - key: promtail-config.yaml  
+              - key: promtail-config.yaml
                 path: promtail-config.yaml
