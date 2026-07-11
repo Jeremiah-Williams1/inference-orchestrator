@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: regression-worker
+  labels:
+    app: regression-worker
+    job-type: regression
+spec:
+  # replicas: 0
+  selector:
+    matchLabels:
+      app: regression-worker
+  template:
+    metadata:
+      labels:
+        app: regression-worker
+        job-type: regression
+    spec:
+      containers:
+        - name: regression-worker
+          image: mlp-regression-worker:dev
+          imagePullPolicy: Never
+          envFrom:
+            - configMapRef:
+                name: regression-worker-config
+          resources:
+            # Starting point, not measured. The classification worker is
+            # XGBoost; this one loads TensorFlow + a SavedModel, which
+            # tends to want more memory headroom at idle/startup than
+            # XGBoost does. Watch `kubectl top pod` under load and adjust
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
