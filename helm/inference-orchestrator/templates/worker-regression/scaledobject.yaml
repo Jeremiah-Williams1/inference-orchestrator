@@ -1,0 +1,17 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: regression-worker-scaledobject
+spec:
+  scaleTargetRef:
+    name: regression-worker
+  minReplicaCount: {{ .Values.workers.regression.keda.minReplicaCount }}
+  maxReplicaCount: {{ .Values.workers.regression.keda.maxReplicaCount }}
+  cooldownPeriod: {{ .Values.workers.regression.keda.cooldownPeriod }}
+  triggers:
+    - type: metrics-api
+      metadata:
+        targetValue: {{ .Values.workers.regression.keda.targetValue | quote }}
+        url: "http://{{ .Values.serviceNames.api }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.api.service.port }}/api/v1/queues/regression/depth"
+        valueLocation: "data.depth"
+        method: "GET"

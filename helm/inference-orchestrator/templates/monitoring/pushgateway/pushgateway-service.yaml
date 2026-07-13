@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.monitoring.pushgateway.service.name }}
+spec:
+  selector:
+    app: pushgateway
+  ports:
+    - port: {{ .Values.monitoring.pushgateway.service.port }}
+      targetPort: {{ .Values.monitoring.pushgateway.service.port }}
+  type: {{ .Values.monitoring.pushgateway.service.type }}

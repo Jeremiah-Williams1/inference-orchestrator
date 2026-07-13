@@ -3,7 +3,8 @@
 # in Grafana (Loki logs + Prometheus metrics).
 #
 # Usage:
-#   export INFERENCE_API_URL="http://192.168.49.2:32135"
+#   export INFERENCE_API_URL="http://<minikube-ip>:<nodeport>"
+#   export INFERENCE_API_URL="http://192.168.49.2:31593"
 #   chmod +x load-test.sh
 #   ./load-test.sh
 

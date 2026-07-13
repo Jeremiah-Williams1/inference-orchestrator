@@ -1,0 +1,17 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: classification-worker-scaledobject
+spec:
+  scaleTargetRef:
+    name: classification-worker
+  minReplicaCount: {{ .Values.workers.classification.keda.minReplicaCount }}
+  maxReplicaCount: {{ .Values.workers.classification.keda.maxReplicaCount }}
+  cooldownPeriod: {{ .Values.workers.classification.keda.cooldownPeriod }}
+  triggers:
+    - type: metrics-api
+      metadata:
+        targetValue: {{ .Values.workers.classification.keda.targetValue | quote }}
+        url: "http://{{ .Values.serviceNames.api }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.api.service.port }}/api/v1/queues/classification/depth"
+        valueLocation: "data.depth"
+        method: "GET"

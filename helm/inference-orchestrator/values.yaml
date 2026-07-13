@@ -1,0 +1,134 @@
+global:
+  imagePullPolicy: Never  # Never for minikube, Always for EKS (values-cloud.yaml)
+
+# ---------------------------------------------------------------------------
+# API
+# ---------------------------------------------------------------------------
+api:
+  image:
+    repository: inference-api
+    tag: latest
+  service:
+    name: inference-svc
+    type: NodePort
+    port: 8080
+  replicas: 1
+  config:
+    serverPort: "8080"
+    appEnv: development
+    redisUrl: "redis://redis-svc:6379"
+
+# ---------------------------------------------------------------------------
+# Redis
+# ---------------------------------------------------------------------------
+redis:
+  image:
+    repository: redis
+    tag: "7-alpine"
+  service:
+    name: redis-svc
+    port: 6379
+  storage:
+    size: 1Gi
+    storageClassName: standard
+
+# ---------------------------------------------------------------------------
+# Workers
+# ---------------------------------------------------------------------------
+workers:
+  classification:
+    image:
+      repository: classification-worker
+      tag: latest
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
+    keda:
+      minReplicaCount: 0
+      maxReplicaCount: 5
+      cooldownPeriod: 30
+      pollingInterval: 15
+      targetValue: "5"
+
+  regression:
+    image:
+      repository: mlp-regression-worker
+      tag: dev
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+    keda:
+      minReplicaCount: 0
+      maxReplicaCount: 5
+      cooldownPeriod: 30
+      pollingInterval: 15
+      targetValue: "5"
+
+# ---------------------------------------------------------------------------
+# Monitoring
+# ---------------------------------------------------------------------------
+monitoring:
+  prometheus:
+    image:
+      repository: prom/prometheus
+      tag: latest
+    service:
+      name: prometheus-svc
+      port: 9090
+      type: NodePort
+
+  grafana:
+    image:
+      repository: grafana/grafana
+      tag: latest
+    service:
+      name: grafana-svc
+      port: 3000
+      type: NodePort
+
+  loki:
+    image:
+      repository: grafana/loki
+      # pinned -- don't change to latest, this specific tag was tested
+      tag: main-4245b4a
+    service:
+      name: loki-svc
+      port: 3100
+      type: NodePort
+    storage:
+      size: 200Mi
+      storageClassName: standard  # minikube; override in values-cloud.yaml
+
+  pushgateway:
+    image:
+      repository: prom/pushgateway
+      tag: latest
+    service:
+      name: pushgateway-svc
+      port: 9091
+      type: NodePort
+  
+  promtail:
+    image:
+      repository: grafana/promtail
+      tag: "3.6.11"   # pinned, same as your raw manifest
+
+# ---------------------------------------------------------------------------
+# Internal service DNS names -- referenced in configmap templates so
+# everything stays consistent without hardcoding in multiple places.
+# ---------------------------------------------------------------------------
+serviceNames:
+  api: inference-svc
+  redis: redis-svc
+  prometheus: prometheus-svc
+  grafana: grafana-svc
+  loki: loki-svc
+  pushgateway: pushgateway-svc

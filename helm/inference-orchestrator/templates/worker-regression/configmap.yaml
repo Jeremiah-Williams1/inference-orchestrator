@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: regression-worker-config
+data:
+  REDIS_URL: "redis://{{ .Values.serviceNames.redis }}:{{ .Values.redis.service.port }}"
+  PUSHGATEWAY_URL: "http://{{ .Values.serviceNames.pushgateway }}:{{ .Values.monitoring.pushgateway.service.port }}"

@@ -1,0 +1,17 @@
+global:
+  imagePullPolicy: Always
+
+redis:
+  storage:
+    storageClassName: gp2
+
+monitoring:
+  prometheus:
+    storage:
+      storageClassName: gp2
+  grafana:
+    storage:
+      storageClassName: gp2
+  loki:
+    storage:
+      storageClassName: gp2

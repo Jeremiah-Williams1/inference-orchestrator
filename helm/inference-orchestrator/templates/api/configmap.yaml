@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inference-api-config
+data:
+  SERVER_PORT: {{ .Values.api.config.serverPort | quote }}
+  APP_ENV: {{ .Values.api.config.appEnv | quote }}
+  REDIS_URL: {{ .Values.api.config.redisUrl | quote }}

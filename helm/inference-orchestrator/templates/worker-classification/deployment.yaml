@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: classification-worker
+  labels:
+    app: classification-worker
+spec:
+  selector:
+    matchLabels:
+      app: classification-worker
+  template:
+    metadata:
+      labels:
+        app: classification-worker
+    spec:
+      containers:
+        - name: classification-worker
+          image: "{{ .Values.workers.classification.image.repository }}:{{ .Values.workers.classification.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: classification-worker-config
+          resources:
+            requests:
+              cpu: {{ .Values.workers.classification.resources.requests.cpu }}
+              memory: {{ .Values.workers.classification.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.workers.classification.resources.limits.cpu }}
+              memory: {{ .Values.workers.classification.resources.limits.memory }}

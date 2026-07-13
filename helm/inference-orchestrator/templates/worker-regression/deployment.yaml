@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: regression-worker
+  labels:
+    app: regression-worker
+spec:
+  selector:
+    matchLabels:
+      app: regression-worker
+  template:
+    metadata:
+      labels:
+        app: regression-worker
+    spec:
+      containers:
+        - name: regression-worker
+          image: "{{ .Values.workers.regression.image.repository }}:{{ .Values.workers.regression.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: regression-worker-config
+          resources:
+            requests:
+              cpu: {{ .Values.workers.regression.resources.requests.cpu }}
+              memory: {{ .Values.workers.regression.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.workers.regression.resources.limits.cpu }}
+              memory: {{ .Values.workers.regression.resources.limits.memory }}
