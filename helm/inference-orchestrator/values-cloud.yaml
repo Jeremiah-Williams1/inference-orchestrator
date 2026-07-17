@@ -1,17 +1,47 @@
 global:
   imagePullPolicy: Always
 
+api:
+  image:
+    repository: fjerremiah/inference-api
+    tag: latest
+  service:
+    type: LoadBalancer
+
+workers:
+  classification:
+    image:
+      repository: fjerremiah/classification-worker
+      tag: latest
+  regression:
+    image:
+      repository: fjerremiah/mlp-regression-worker
+      tag: dev
+
 redis:
   storage:
     storageClassName: gp2
 
 monitoring:
   prometheus:
+    service:
+      type: ClusterIP
     storage:
       storageClassName: gp2
   grafana:
+    image:
+      repository: grafana/grafana
+      tag: latest
+    service:
+      type: LoadBalancer
     storage:
       storageClassName: gp2
   loki:
     storage:
+      size: 200Mi
       storageClassName: gp2
+    service:
+      type: ClusterIP
+  pushgateway:
+    service:
+      type: ClusterIP

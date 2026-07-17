@@ -8,10 +8,10 @@ just CPU/memory.
 This is a learning project for ML infra fundamentals (Kubernetes, observability,
 autoscaling), built incrementally and deployed to a managed cloud cluster (EKS).
 
-> **Status:** Core pipeline, observability, Kubernetes migration, KEDA
-> autoscaling, Loki/Promtail log aggregation, second worker (multi-job-type
-> orchestration), and Helm packaging all complete. Next: EKS cloud migration.
-> See `next_steps.md` for the detailed running log.
+> **Status:** Complete — core pipeline, observability, Kubernetes migration,
+> KEDA autoscaling, Loki/Promtail log aggregation, second worker
+> (multi-job-type orchestration), Helm packaging, and EKS cloud migration all
+> done. See `next_steps.md` for the full running log.
 
 ---
 
@@ -172,16 +172,21 @@ helm uninstall inference-orchestrator
 
 ## Cloud deployment (EKS)
 
+### Prerequisites
+- AWS CLI v2 installed and configured (`aws configure`)
+- `eksctl` installed
+- Docker Hub account with images pushed
+
 ### 1. Push images to Docker Hub
 
 ```bash
-docker tag inference-api:dev <dockerhub-username>/inference-api:v1.0.0
+docker build -t <dockerhub-username>/inference-api:v1.0.0 ./api
 docker push <dockerhub-username>/inference-api:v1.0.0
 
-docker tag classification-worker:dev <dockerhub-username>/classification-worker:v1.0.0
+docker build -t <dockerhub-username>/classification-worker:v1.0.0 .
 docker push <dockerhub-username>/classification-worker:v1.0.0
 
-docker tag mlp-regression-worker:dev <dockerhub-username>/mlp-regression-worker:v1.0.0
+docker build -t <dockerhub-username>/mlp-regression-worker:v1.0.0 .
 docker push <dockerhub-username>/mlp-regression-worker:v1.0.0
 ```
 
@@ -195,6 +200,8 @@ api:
   image:
     repository: <dockerhub-username>/inference-api
     tag: v1.0.0
+  service:
+    type: LoadBalancer
 
 workers:
   classification:
@@ -211,6 +218,9 @@ redis:
     storageClassName: gp2
 
 monitoring:
+  grafana:
+    service:
+      type: LoadBalancer
   loki:
     storage:
       storageClassName: gp2
@@ -221,18 +231,55 @@ monitoring:
 ```bash
 eksctl create cluster \
   --name inference-orchestrator \
-  --region us-east-1 \
+  --region eu-west-2 \
   --nodegroup-name standard-workers \
   --node-type t3.medium \
-  --nodes 2
-
-# Install KEDA on the cluster
-helm repo add kedacore https://kedacore.github.io/charts
-helm repo update
-helm install keda kedacore/keda --namespace keda --create-namespace
+  --nodes 2 \
+  --nodes-min 2 \
+  --nodes-max 3 \
+  --managed
 ```
 
-### 4. Deploy
+Takes 15-20 minutes. eksctl updates your kubeconfig automatically.
+
+### 4. Install the EBS CSI driver (required for PVCs on EKS)
+
+```bash
+# Enable OIDC provider
+eksctl utils associate-iam-oidc-provider \
+  --cluster inference-orchestrator \
+  --region eu-west-2 \
+  --approve
+
+# Create service account with EBS permissions
+eksctl create iamserviceaccount \
+  --name ebs-csi-controller-sa \
+  --namespace kube-system \
+  --cluster inference-orchestrator \
+  --region eu-west-2 \
+  --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+  --approve \
+  --override-existing-serviceaccounts
+
+# Install the addon
+eksctl create addon \
+  --name aws-ebs-csi-driver \
+  --cluster inference-orchestrator \
+  --region eu-west-2 \
+  --force
+```
+
+### 5. Install KEDA
+
+```bash
+# If helm repo add fails due to network, use OCI install instead
+helm install keda \
+  oci://ghcr.io/kedacore/charts/keda \
+  --namespace keda \
+  --create-namespace
+```
+
+### 6. Deploy
 
 ```bash
 helm install inference-orchestrator ./helm/inference-orchestrator \
@@ -240,13 +287,30 @@ helm install inference-orchestrator ./helm/inference-orchestrator \
   -f helm/inference-orchestrator/values-cloud.yaml
 ```
 
-### 5. Cost note
-
-Delete the cluster between sessions — idle managed k8s clusters bill
-continuously:
+### 7. Get public URLs
 
 ```bash
-eksctl delete cluster --name inference-orchestrator
+kubectl get svc
+```
+
+`inference-svc` and `grafana-svc` will have AWS load balancer hostnames under
+`EXTERNAL-IP`. Use those to run the load test and access Grafana.
+
+### 8. Cost management
+
+```bash
+# Scale nodes to 0 between sessions (stops EC2 billing, ~$0.10/hr control plane remains)
+eksctl scale nodegroup \
+  --cluster inference-orchestrator \
+  --name standard-workers \
+  --nodes 0 \
+  --nodes-min 0 \
+  --region eu-west-2
+
+# Full delete when done (stops all billing)
+eksctl delete cluster \
+  --name inference-orchestrator \
+  --region eu-west-2
 ```
 
 ---
@@ -257,36 +321,56 @@ eksctl delete cluster --name inference-orchestrator
   `orchestrator-worker-base` pinned to a git tag
   (`git+https://github.com/<you>/orchestrator-worker-base.git@v0.1.1`).
   The shared loop handles Redis, BRPOP, status writes, Pushgateway push,
-  and error handling — malformed JSON, missing fields, predict_fn exceptions,
-  Redis hiccups, and Pushgateway outages all handled without crashing the loop.
+  and all error handling — malformed JSON, missing fields, predict_fn
+  exceptions, Redis hiccups, and Pushgateway outages all handled without
+  crashing the loop.
 
 - **Push vs. pull metrics**: workers have no HTTP server and scale to zero,
   so they can't be scraped directly — they push to a Pushgateway instead.
 
 - **KEDA over plain HPA**: HPA can't scale below 1 replica. KEDA's
-  `ScaledObject` scales workers to true zero when queues are empty.
+  `ScaledObject` scales workers to true zero when queues are empty. KEDA
+  polls the API's queue depth endpoint directly — the ScaledObject URL must
+  use the fully qualified service DNS name
+  (`inference-svc.default.svc.cluster.local`) not the short name, because
+  KEDA runs in its own namespace and short names don't resolve across
+  namespaces.
+
+- **EBS CSI driver not included by default on EKS**: PVCs won't provision
+  without it. Requires OIDC provider + IRSA (IAM Roles for Service Accounts)
+  to give the driver permission to create EBS volumes.
+
+- **EBS volume permissions on EKS**: EBS volumes mount as root. Loki runs as
+  user/group 10001 and can't write to the mount without `fsGroup: 10001`
+  in the pod's `securityContext`. This doesn't surface on minikube because
+  hostPath volumes are permissive by default.
 
 - **Normalization inside the SavedModel**: the regression worker's
-  `Normalization` layer is baked into the model via `model.export()`, not
-  applied in `predict.py`. Preprocessing travels with the model — consistent
-  across environments and ready for Triton's TF backend if needed later.
-
-- **Loki storage is a PVC**, not `emptyDir` — logs survive pod restarts.
+  `Normalization` layer is baked into the model via `model.export()` not
+  `model.save()` -- the latter raises a ValueError under Keras 3 for
+  directory paths. `model.export()` produces a proper SavedModel directory
+  loadable via `tf.saved_model.load()` and compatible with Triton's TF
+  backend.
 
 - **Promtail needs both `/var/log` and `/var/lib/docker/containers` mounted**:
   pod log files under `/var/log/pods/` are symlinks into
   `/var/lib/docker/containers/`. Mounting only `/var/log` means Promtail
   can't follow those symlinks.
 
-- **Promtail `HOSTNAME` via Downward API**: promtail uses `$HOSTNAME` to
+- **Promtail `HOSTNAME` via Downward API**: Promtail uses `$HOSTNAME` to
   filter pod discovery to its own node, but the default `$HOSTNAME` resolves
-  to the pod name, not the node name. Fixed via
+  to the pod name not the node name. Fixed via
   `env: HOSTNAME <- fieldRef: spec.nodeName`.
 
 - **Helm for environment parity**: `values.yaml` is the minikube default;
   `values-cloud.yaml` contains only the differences for EKS. Same chart,
   same templates, different values — `imagePullPolicy`, image repositories,
-  and storage class names are the main things that change.
+  service types, and storage class names are the main things that change.
+
+- **Grafana dashboard JSON and Helm template conflicts**: Grafana uses `{{ }}`
+  for its own variable syntax inside dashboard JSON. Helm uses the same
+  delimiter. Any `{{ type }}` inside the dashboard JSON must be escaped as
+  `{{ "{{" }} type {{ "}}" }}` or Helm fails at install.
 
 ---
 
@@ -298,4 +382,4 @@ eksctl delete cluster --name inference-orchestrator
 4. ~~Loki + Promtail log aggregation~~ ✅
 5. ~~Second worker — multi-job-type orchestration~~ ✅
 6. ~~Helm packaging~~ ✅
-7. **EKS cloud migration** ← current
+7. ~~EKS cloud migration~~ ✅
